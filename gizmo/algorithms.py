@@ -177,7 +177,7 @@ def run_qaoa_optimization(
         qc = circuit_builder(gammas, betas)
         counts = run_circuit_sampling(qc, shots=1024, seed=seed)
         shots = sum(counts.values())
-        return sum(evaluator(b) * (cnt / shots) for b, c in counts.items())
+        return sum(evaluator(b) * (cnt / shots) for b, cnt in counts.items())
         
     res = minimize(
         loss_objective,

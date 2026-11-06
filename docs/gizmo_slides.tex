@@ -1,0 +1,339 @@
+\documentclass[aspectratio=169,10pt]{beamer}
+
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{graphicx}
+\usepackage{physics}
+\usepackage{tikz}
+
+% Clean, professional theme styling
+\usetheme{Madrid}
+\usecolortheme{whale}
+
+\definecolor{gizmoBlue}{RGB}{15, 32, 67}
+\definecolor{gizmoAccent}{RGB}{0, 168, 150}
+\definecolor{gizmoRed}{RGB}{217, 4, 41}
+\definecolor{gizmoSlate}{RGB}{43, 45, 66}
+
+\setbeamercolor{palette primary}{bg=gizmoBlue,fg=white}
+\setbeamercolor{palette secondary}{bg=gizmoSlate,fg=white}
+\setbeamercolor{palette tertiary}{bg=gizmoAccent,fg=white}
+\setbeamercolor{structure}{fg=gizmoBlue}
+\setbeamercolor{titlelike}{parent=palette primary}
+\setbeamercolor{block title}{bg=gizmoBlue,fg=white}
+\setbeamercolor{block body}{bg=gizmoBlue!5!white,fg=black}
+\setbeamercolor{alerted text}{fg=gizmoRed}
+
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{footline}[frame number]
+
+\title[\textbf{Project Gizmo}]{\textbf{Project Gizmo: Subspace-Constrained Quantum Portfolio Selection}}
+\subtitle{Eliminating QAOA Penalty Dilution via Excitation-Preserving Mixers \& $\mathcal{O}(N)$ SWAP Networks}
+\author[\textbf{Team Gizmo}]{\textbf{Team Gizmo} \\ Akhilesh Varma (\texttt{akhverm@gmail.com})}
+\institute[]{IBM Qiskit Fall Fest Hackathon 2026 --- Track 2: Quantum Optimization}
+\date{\today}
+
+\begin{document}
+
+% Slide 1: Title
+\begin{frame}
+\titlepage
+\end{frame}
+
+% Slide 2: The Core Problem
+\begin{frame}{The Core Problem: Cardinality-Constrained Portfolio Selection}
+\begin{columns}
+\begin{column}{0.55\textwidth}
+\textbf{Markowitz Mean-Variance Formulation (1952):}
+\begin{equation*}
+\min_{\mathbf{x} \in \{0, 1\}^N} \mathcal{C}(\mathbf{x}) = \frac{q}{2} \mathbf{x}^T \boldsymbol{\Sigma} \mathbf{x} - \boldsymbol{\mu}^T \mathbf{x}
+\end{equation*}
+subject to the exact budget/cardinality constraint:
+\begin{equation*}
+\sum_{i=0}^{N-1} x_i = K \quad \text{(Pick exactly } K \text{ out of } N \text{ assets)}
+\end{equation*}
+\begin{itemize}
+    \item $\boldsymbol{\mu} \in \mathbb{R}^N$: Asset expected annual returns.
+    \item $\boldsymbol{\Sigma} \in \mathbb{R}^{N \times N}$: Return covariance matrix.
+    \item $q > 0$: Risk-aversion coefficient.
+    \item \textbf{Complexity:} NP-hard binary quadratic optimization.
+\end{itemize}
+\end{column}
+
+\begin{column}{0.43\textwidth}
+\begin{block}{The Combinatorial Reality}
+\begin{itemize}
+    \item Total search space: $2^N$ states.
+    \item Feasible asset combinations: $\binom{N}{K}$.
+    \item \textbf{Example ($N=16, K=4$):}
+    \begin{itemize}
+        \item Total states: $65,536$
+        \item Feasible states: $1,820$
+        \item \alert{Valid fraction: only $2.78\%$}
+    \end{itemize}
+    \item How does standard gate-model quantum optimization handle this constraint?
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 3: Why Conventional QAOA Fails
+\begin{frame}{The Conventional Approach \& Its Catastrophic Failure}
+\textbf{The Standard Textbook Recipe:} Map the constraint to a soft penalty term:
+\begin{equation*}
+H_{\text{total}} = H_C + \lambda \left(\sum_{i=0}^{N-1} x_i - K\right)^2, \quad H_M = \sum_{i=0}^{N-1} X_i, \quad |\psi_0\rangle = |+\rangle^{\otimes N}
+\end{equation*}
+
+\vspace{0.3cm}
+\begin{columns}
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{Failure 1: The Penalty Parameter Dilemma}
+\begin{itemize}
+    \item \textbf{$\lambda$ too small:} Quantum state collapses into unconstrained space; $>60\%$ of measured shots violate the budget ($\sum x_i \neq K$).
+    \item \textbf{$\lambda$ too large:} Penalty canyons dominate the cost landscape; optimizer ignores variance $\boldsymbol{\Sigma}$ and returns $\boldsymbol{\mu}$.
+\end{itemize}
+\end{alertblock}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{Failure 2: Exponential State Dilution}
+\begin{itemize}
+    \item Transverse mixer $\sum X_i$ breaks Hamming weight conservation.
+    \item Amplitudes leak indiscriminately into the $2^N$ unconstrained space.
+    \item On noisy NISQ hardware, $>95\%$ of experimental shot budget is wasted on illegal portfolios.
+\end{itemize}
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 4: The Gizmo Architecture
+\begin{frame}{The Gizmo Architecture: Complete Subspace Confinement}
+\begin{center}
+\textbf{Core Thesis: Stop penalizing invalid configurations. Confine the Hilbert space.}
+\end{center}
+
+\vspace{0.2cm}
+\begin{columns}
+\begin{column}{0.48\textwidth}
+\begin{block}{1. Deterministic Dicke Initialization}
+\begin{itemize}
+    \item Initialize in the symmetric superposition:
+    \begin{equation*}
+    |D_K^N\rangle = \binom{N}{K}^{-1/2} \sum_{\text{wt}(\mathbf{x})=K} |\mathbf{x}\rangle
+    \end{equation*}
+    \item Synthesized via an inductive $\mathcal{O}(NK)$ controlled-Givens rotation ladder (Bärtschi \& Eidenbenz).
+    \item Zero classical statevector allocation.
+\end{itemize}
+\end{block}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{block}{2. Excitation-Preserving $XY$-Mixer}
+\begin{itemize}
+    \item Replace $X_i$ with hopping interactions:
+    \begin{equation*}
+    H_{XY} = \frac{1}{2} \sum_{i=0}^{N-2} \left(X_i X_{i+1} + Y_i Y_{i+1}\right)
+    \end{equation*}
+    \item Commutes with total excitation:
+    \begin{equation*}
+    \left[H_{XY}, \sum_{i=0}^{N-1} Z_i\right] = 0
+    \end{equation*}
+    \item \textbf{Guarantees 100\% feasible measurement samples.}
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 5: The Math
+\begin{frame}{Mathematical Rigor: Commutation Proof \& Subspace Invariance}
+\textbf{Analytical Commutator Derivation on Edge $(i, j)$:}
+\begin{align*}
+[X_i X_j + Y_i Y_j, Z_i + Z_j] &= [X_i X_j, Z_i] + [X_i X_j, Z_j] + [Y_i Y_j, Z_i] + [Y_i Y_j, Z_j] \\
+&= (-2i Y_i X_j) + (-2i X_i Y_j) + (2i X_i Y_j) + (2i Y_i X_j) \\
+&= 0
+\end{align*}
+
+\begin{columns}
+\begin{column}{0.5\textwidth}
+\begin{block}{Direct Consequence}
+For any evolution angle $\beta \in \mathbb{R}$:
+\begin{equation*}
+\left[e^{-i \beta H_{XY}}, \sum_{i=0}^{N-1} Z_i\right] = 0
+\end{equation*}
+The unitary $U_{XY}(\beta)$ leaves the eigenspaces of total Hamming weight strictly invariant.
+\end{block}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{block}{Elimination of Hyperparameters}
+\begin{itemize}
+    \item Penalty multiplier $\lambda$ is completely eliminated.
+    \item Classical outer optimizer (COBYLA) searches strictly within the $\binom{N}{K}$ financial subspace.
+    \item Every measurement shot is a valid allocation.
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 6: Heavy-Hex Compilation & SWAP Network
+\begin{frame}{Heavy-Hex Compilation: Linear $\mathcal{O}(N)$ Alternating SWAP Network}
+\begin{itemize}
+    \item \textbf{The Bottleneck:} Return covariance $\boldsymbol{\Sigma}$ is dense $\implies \binom{N}{2}$ all-to-all $Z_i Z_j$ interactions.
+    \item Mapping $K_N$ onto IBM heavy-hex (degree $\le 3$) via standard heuristic transpilation creates dozens of uncontrolled SWAPs.
+\end{itemize}
+
+\vspace{0.2cm}
+\begin{columns}
+\begin{column}{0.55\textwidth}
+\begin{block}{Linear Alternating SWAP Network}
+\begin{itemize}
+    \item Arrange $N$ qubits on a 1D nearest-neighbor chain.
+    \item In each stage: apply $R_{ZZ}(2\gamma J_{q_a, q_b})$ on adjacent physical wires, followed by SWAP.
+    \item Alternating even/odd physical pairs executes all $\frac{N(N-1)}{2}$ interactions in \textbf{exactly $N$ stages ($\mathcal{O}(N)$ depth)}.
+\end{itemize}
+\end{block}
+\end{column}
+
+\begin{column}{0.43\textwidth}
+\begin{block}{Permutation Unrolling}
+\begin{itemize}
+    \item After $N$ stages, physical wire $p$ holds logical asset $\sigma(p)$.
+    \item \textbf{The Innovation:} Measure physical wire $p$ directly into classical register bit $\sigma(p)$.
+    \item \textbf{Zero inverse-SWAP gate overhead!}
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 7: Empirical Results
+\begin{frame}{Empirical Benchmark: S\&P 500 Portfolio ($N=8, K=3$, 4,096 Shots)}
+\begin{center}
+\small
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Metric} & \textbf{Naive QAOA ($\lambda=2.5$)} & \textbf{Gizmo Subspace} & \textbf{Gizmo SWAP-Net} & \textbf{Ground Truth} \\
+\midrule
+Total Shots & 4,096 & 4,096 & 4,096 & 56 \\
+\textbf{Feasible Shots ($\sum x_i = 3$)} & 1,636 & \textbf{4,096} & \textbf{4,096} & 56 \\
+\textbf{Feasibility Ratio} & \alert{\textbf{39.94\%}} & \textbf{100.00\%} & \textbf{100.00\%} & 100.00\% \\
+\textbf{Min Energy Found} & -0.956407 & \textbf{-0.956407} & \textbf{-0.956407} & \textbf{-0.956407} \\
+\textbf{Circuit Depth} & 15 & 20 & \textbf{22 (Bounded)} & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\vspace{0.2cm}
+\begin{columns}
+\begin{column}{0.48\textwidth}
+\begin{block}{Financial Validation}
+\begin{itemize}
+    \item Selected Assets: \textbf{AAPL, XOM, JNJ} (Bitstring \texttt{00110001}).
+    \item Expected Return: $\mathbf{34.99\%}$ \quad Volatility: $\mathbf{14.40\%}$
+    \item \textbf{Optimal Sharpe Ratio:} $\mathbf{2.2222}$ (vs. $r_f = 3.0\%$)
+\end{itemize}
+\end{block}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{alertblock}{The Waste in Naive QAOA}
+\begin{itemize}
+    \item Naive QAOA wasted \textbf{60.06\% of total measurement shots} on invalid states ($K \neq 3$).
+    \item Gizmo achieved \textbf{zero wasted shots} and recovered the exact combinatorial minimum energy.
+\end{itemize}
+\end{alertblock}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 8: The Exponential Scaling Wall
+\begin{frame}{The Exponential Scaling Wall: Subspace Confinement vs. Unconstrained Diffusion}
+\begin{columns}
+\begin{column}{0.55\textwidth}
+\small
+\begin{tabular}{cccc}
+\toprule
+\textbf{Assets ($N$)} & \textbf{Budget ($K$)} & \textbf{Naive Space $\frac{\binom{N}{K}}{2^N}$} & \textbf{Gizmo Subspace} \\
+\midrule
+6  & 2 & 23.44\% & \textbf{100.00\%} \\
+8  & 2 & 10.94\% & \textbf{100.00\%} \\
+10 & 2 & 4.39\%  & \textbf{100.00\%} \\
+12 & 3 & 5.37\%  & \textbf{100.00\%} \\
+14 & 3 & 2.22\%  & \textbf{100.00\%} \\
+16 & 4 & 2.78\%  & \textbf{100.00\%} \\
+20 & 5 & \alert{\textbf{1.48\%}} & \textbf{100.00\%} \\
+\bottomrule
+\end{tabular}
+\end{column}
+
+\begin{column}{0.43\textwidth}
+\begin{block}{Exponential Sampling Advantage}
+\begin{itemize}
+    \item At $N=16$, naive QAOA wastes $\mathbf{97.2\%}$ of shots.
+    \item At $N=20$, naive QAOA wastes $\mathbf{98.5\%}$ of shots.
+    \item \textbf{Gizmo Advantage Factor:}
+    \begin{equation*}
+    \frac{2^{20}}{\binom{20}{5}} \approx \mathbf{67.6\times}
+    \end{equation*}
+    \item Subspace confinement is mathematically non-negotiable for scale.
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+% Slide 9: Classical Skepticism & The HUBO Frontier
+\begin{frame}{Epistemic Honesty: Why Not Just Use Classical MIP / Gurobi?}
+\begin{alertblock}{Intellectual Honesty Check}
+For standard quadratic binary programs with $N \le 50$, classical mixed-integer solvers (Gurobi, CPLEX, SCIP) reach global optimality in milliseconds. We make no false claims of beating classical MIPs on toy quadratic models.
+\end{alertblock}
+
+\vspace{0.2cm}
+\begin{block}{Where Quantum Advantage Actually Resides: Higher-Order Binary Optimization (HUBO)}
+\begin{itemize}
+    \item \textbf{Nonlinear Market Impact:} Piecewise cubic transaction costs ($c_i x_i^{3/2}$) where classical convex relaxations loosen.
+    \item \textbf{Higher-Order Tail Risk:} Asymmetric downside risk incorporating co-skewness ($S_{ijk} x_i x_j x_k$) and co-kurtosis ($K_{ijkl} x_i x_j x_k x_l$) risk tensors.
+    \item \textbf{The Frontier:} Classical branch-and-cut faces worst-case exponential tree exploration under HUBO, whereas gate-model quantum superposition naturally executes multi-qubit phase rotations.
+\end{itemize}
+\end{block}
+\end{frame}
+
+% Slide 10: Conclusion
+\begin{frame}{Conclusion \& Hackathon Deliverables}
+\begin{columns}
+\begin{column}{0.5\textwidth}
+\begin{block}{Technical Achievements}
+\begin{enumerate}
+    \item \textbf{100.00\% Feasibility:} Eliminated soft-penalty tuning; verified zero constraint violations.
+    \item \textbf{Polynomial Dicke Ladder:} Replaced classical statevector allocations with $\mathcal{O}(NK)$ Givens rotations.
+    \item \textbf{Hardware-Aware SWAP Network:} $\mathcal{O}(N)$ depth all-to-all execution with zero-overhead classical permutation decoding.
+    \item \textbf{Rigorous Empirical Proof:} Verified exact combinatorial ground state on real S\&P 500 historical data.
+\end{enumerate}
+\end{block}
+\end{column}
+
+\begin{column}{0.48\textwidth}
+\begin{block}{Project Links \& Artifacts}
+\begin{itemize}
+    \item \textbf{Team Name:} Gizmo
+    \item \textbf{Lead / Contact:} Akhilesh Varma
+    \item \textbf{Email:} \texttt{akhverm@gmail.com}
+    \item \textbf{Repository:} \\
+    \url{https://github.com/ak495867/WQU-Gizmo}
+    \item \textbf{Executed Notebook:} \\
+    \texttt{gizmo\_portfolio\_showcase.ipynb}
+    \item \textbf{Formal Paper:} \\
+    \texttt{docs/gizmo\_paper.pdf}
+\end{itemize}
+\end{block}
+\end{column}
+\end{columns}
+\end{frame}
+
+\end{document}

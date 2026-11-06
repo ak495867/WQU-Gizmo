@@ -1,4 +1,5 @@
 import numpy as np
+from typing import Tuple, List
 from qiskit import QuantumCircuit
 
 def build_linear_swap_network_cost_layer(
@@ -6,7 +7,7 @@ def build_linear_swap_network_cost_layer(
     gamma: float,
     J_matrix: np.ndarray,
     h_vector: np.ndarray
-) -> QuantumCircuit:
+) -> Tuple[QuantumCircuit, List[int]]:
     qc = QuantumCircuit(N, name="Swap_Net_Cost")
     
     for i in range(N):
@@ -33,4 +34,4 @@ def build_linear_swap_network_cost_layer(
                 qc.swap(p1, p2)
                 loc[p1], loc[p2] = loc[p2], loc[p1]
                 
-    return qc
+    return qc, loc

@@ -3,7 +3,6 @@ from typing import Dict, List, Tuple, Any, Optional
 from scipy.optimize import minimize
 
 from qiskit import QuantumCircuit
-from qiskit.circuit.library import QAOAAnsatz
 from qiskit.quantum_info import SparsePauliOp
 
 from .subspace import create_dicke_state, build_xy_mixer
@@ -50,19 +49,22 @@ def build_subspace_qaoa_circuit(
     betas: List[float],
     J_matrix: np.ndarray,
     h_vector: np.ndarray,
-    use_swap_network: bool = True
+    use_swap_network: bool = True,
+    connectivity: str = "chain",
+    dicke_method: str = "ladder"
 ) -> QuantumCircuit:
     qc = QuantumCircuit(N, N)
     
-    dicke_circ = create_dicke_state(N, K)
+    dicke_circ = create_dicke_state(N, K, method=dicke_method)
     qc.compose(dicke_circ, inplace=True)
     
+    final_loc = list(range(N))
     for layer in range(p):
         gamma = gammas[layer]
         beta = betas[layer]
         
         if use_swap_network:
-            cost_layer = build_linear_swap_network_cost_layer(N, gamma, J_matrix, h_vector)
+            cost_layer, final_loc = build_linear_swap_network_cost_layer(N, gamma, J_matrix, h_vector)
             qc.compose(cost_layer, inplace=True)
         else:
             for i in range(N):
@@ -73,10 +75,15 @@ def build_subspace_qaoa_circuit(
                     if abs(J_matrix[i, j]) > 1e-12:
                         qc.rzz(2.0 * gamma * J_matrix[i, j], i, j)
                         
-        mixer_layer = build_xy_mixer(N, beta, connectivity="ring")
+        mixer_layer = build_xy_mixer(N, beta, connectivity=connectivity)
         qc.compose(mixer_layer, inplace=True)
         
-    qc.measure(list(range(N)), list(range(N)))
+    if use_swap_network:
+        for p_idx in range(N):
+            qc.measure(p_idx, final_loc[p_idx])
+    else:
+        qc.measure(list(range(N)), list(range(N)))
+        
     return qc
 
 def evaluate_counts_feasibility(
@@ -155,7 +162,8 @@ def run_circuit_sampling(
         return counts
 
 def run_qaoa_optimization(
-    cost_func_builder,
+    circuit_builder,
+    evaluator,
     p: int = 1,
     maxiter: int = 35,
     seed: int = 42
@@ -164,14 +172,12 @@ def run_qaoa_optimization(
     initial_point = rng.uniform(0.1, 0.8, size=2 * p)
     
     def loss_objective(params):
-        gammas = params[:p]
-        betas = params[p:]
-        qc = cost_func_builder(gammas, betas)
+        gammas = list(params[:p])
+        betas = list(params[p:])
+        qc = circuit_builder(gammas, betas)
         counts = run_circuit_sampling(qc, shots=1024, seed=seed)
         shots = sum(counts.values())
-        return sum(cost * (cnt / shots) for cost, cnt in [
-            (cost_func_builder.eval_bitstring(b), c) for b, c in counts.items()
-        ])
+        return sum(evaluator(b) * (cnt / shots) for b, c in counts.items())
         
     res = minimize(
         loss_objective,
@@ -182,7 +188,7 @@ def run_qaoa_optimization(
     
     opt_gammas = list(res.x[:p])
     opt_betas = list(res.x[p:])
-    final_qc = cost_func_builder(opt_gammas, opt_betas)
+    final_qc = circuit_builder(opt_gammas, opt_betas)
     final_counts = run_circuit_sampling(final_qc, shots=4096, seed=seed)
     
     return opt_gammas, opt_betas, final_counts

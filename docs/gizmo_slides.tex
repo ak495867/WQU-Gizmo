@@ -215,7 +215,7 @@ The unitary $U_{XY}(\beta)$ leaves the eigenspaces of total Hamming weight stric
 % Slide 7: Empirical Results
 \begin{frame}{Empirical Benchmark: S\&P 500 Portfolio ($N=8, K=3$, 4,096 Shots)}
 \begin{center}
-\small
+\resizebox{0.95\textwidth}{!}{%
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Metric} & \textbf{Naive QAOA ($\lambda=2.5$)} & \textbf{Gizmo Subspace} & \textbf{Gizmo SWAP-Net} & \textbf{Ground Truth} \\
@@ -226,7 +226,8 @@ Total Shots & 4,096 & 4,096 & 4,096 & 56 \\
 \textbf{Min Energy Found} & -0.956407 & \textbf{-0.956407} & \textbf{-0.956407} & \textbf{-0.956407} \\
 \textbf{Circuit Depth} & 15 & 20 & \textbf{22 (Bounded)} & --- \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{center}
 
 \vspace{0.2cm}
@@ -255,8 +256,8 @@ Total Shots & 4,096 & 4,096 & 4,096 & 56 \\
 % Slide 8: The Exponential Scaling Wall
 \begin{frame}{The Exponential Scaling Wall: Subspace Confinement vs. Unconstrained Diffusion}
 \begin{columns}
-\begin{column}{0.55\textwidth}
-\small
+\begin{column}{0.52\textwidth}
+\resizebox{\linewidth}{!}{%
 \begin{tabular}{cccc}
 \toprule
 \textbf{Assets ($N$)} & \textbf{Budget ($K$)} & \textbf{Naive Space $\frac{\binom{N}{K}}{2^N}$} & \textbf{Gizmo Subspace} \\
@@ -269,10 +270,11 @@ Total Shots & 4,096 & 4,096 & 4,096 & 56 \\
 16 & 4 & 2.78\%  & \textbf{100.00\%} \\
 20 & 5 & \alert{\textbf{1.48\%}} & \textbf{100.00\%} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{column}
 
-\begin{column}{0.43\textwidth}
+\begin{column}{0.45\textwidth}
 \begin{block}{Exponential Sampling Advantage}
 \begin{itemize}
     \item At $N=16$, naive QAOA wastes $\mathbf{97.2\%}$ of shots.

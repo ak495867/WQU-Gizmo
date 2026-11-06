@@ -81,7 +81,8 @@ C_{\text{offset}} &= \frac{1}{2}\sum_{i=0}^{N-1} \left(\frac{q}{2}\Sigma_{ii} - 
 \centering
 \caption{Asset Universe Characteristics ($N=8$, Historical 1-Year S\&P 500 Daily Returns)}
 \label{tab:assets}
-\small
+\vspace{2pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{llcc}
 \toprule
 \textbf{Ticker} & \textbf{Sector} & \textbf{Expected Return} & \textbf{Volatility} \\
@@ -95,7 +96,8 @@ JNJ  & Healthcare & 12.40\% & 11.20\% \\
 PG   & Consumer Staples & 14.10\% & 12.80\% \\
 AMZN & Consumer Discr. & 36.20\% & 22.40\% \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \section{Subspace-Preserving Variational Optimization}
@@ -107,11 +109,12 @@ Rather than preparing the unconstrained uniform superposition $|+\rangle^{\otime
 \end{equation}
 To avoid the exponential classical memory overhead of generic statevector decomposition, we implement a deterministic gate ladder based on controlled Givens rotations \cite{bartschi2019}. The circuit initializes $K$ physical qubits in the state $|1\rangle$ and sequentially distributes amplitudes via two-qubit Givens blocks:
 \begin{equation}
+\setlength{\arraycolsep}{2.5pt}
 G(\theta) = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & \cos\theta & \sin\theta & 0 \\ 0 & -\sin\theta & \cos\theta & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix}
 \end{equation}
 where $\theta = \arccos(\sqrt{j / l})$ for inductive indices $l, j$. Each block is synthesized natively with two CNOT gates and one single-qubit controlled-$R_y$ rotation, requiring $\mathcal{O}(NK)$ total two-qubit gates.
 
-\subsection{The $XY$ Hopping Mixer}
+\subsection{The \texorpdfstring{$XY$}{XY} Hopping Mixer}
 To preserve total excitation number throughout variational evolution, Gizmo replaces the standard transverse-field mixer $H_M = \sum_i X_i$ with the $XY$ hopping Hamiltonian:
 \begin{equation}
 H_{XY} = \frac{1}{2} \sum_{(i, j) \in E} \left( X_i X_j + Y_i Y_j \right)
@@ -145,16 +148,12 @@ E_{\text{chain}} = \{(i, i+1) \mid 0 \le i \le N-2\}
 \end{equation}
 This eliminates cross-chip routing required by ring topologies and permits parallel execution across even pairs and odd pairs in exactly two gate layers.
 
-\section{Hardware-Aware SWAP Networks}
-
-\subsection{The All-to-All Connectivity Bottleneck}
-The empirical covariance matrix $\boldsymbol{\Sigma}$ is dense, resulting in $\binom{N}{2}$ pairwise $Z_i Z_j$ interaction terms in $H_C$. Mapping a complete interaction graph $K_N$ onto a linear physical coupling topology via standard heuristic routing introduces dozens of uncontrolled SWAP operations that rapidly exceed qubit coherence times.
-
 \begin{table*}[t]
 \centering
 \caption{Performance Comparison: Combinatorial Benchmark ($N=8, K=3$, S\&P 500 Equities, 4,096 Total Shots)}
 \label{tab:results}
-\small
+\vspace{2pt}
+\resizebox{\textwidth}{!}{%
 \begin{tabular}{lccccc}
 \toprule
 \textbf{Optimization Approach} & \textbf{Feasible Shots} & \textbf{Feasibility Ratio} & \textbf{Min Energy Found} & \textbf{Exact Optima Hit} & \textbf{Circuit Depth} \\
@@ -165,8 +164,14 @@ Naive QAOA (Penalty $\lambda = 2.5$) & 1,636 & 39.94\% & -0.956407 & Yes & 15 \\
 \textbf{Gizmo SWAP-Net (1D Chain)} & \textbf{4,096} & \textbf{100.00\%} & \textbf{-0.956407} & \textbf{Yes} & \textbf{22 (Bounded $\mathcal{O}(N)$)} \\
 \textbf{Gizmo COBYLA Variational Loop} & \textbf{4,096} & \textbf{100.00\%} & \textbf{-0.956407} & \textbf{Yes} & 22 \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table*}
+
+\section{Hardware-Aware SWAP Networks}
+
+\subsection{The All-to-All Connectivity Bottleneck}
+The empirical covariance matrix $\boldsymbol{\Sigma}$ is dense, resulting in $\binom{N}{2}$ pairwise $Z_i Z_j$ interaction terms in $H_C$. Mapping a complete interaction graph $K_N$ onto a linear physical coupling topology via standard heuristic routing introduces dozens of uncontrolled SWAP operations that rapidly exceed qubit coherence times.
 
 \subsection{Linear Alternating SWAP Execution}
 Gizmo implements a linear alternating SWAP network \cite{kivlichan2018}. Over $N$ sequential rounds, alternating nearest-neighbor pairs apply:
@@ -204,7 +209,8 @@ In contrast, Gizmo Subspace QAOA, Gizmo SWAP-Net, and the COBYLA-optimized varia
 \centering
 \caption{Combinatorial Scaling: Feasible Subspace Ratio vs. Problem Size ($K = \lfloor N/4 \rfloor$)}
 \label{tab:scaling}
-\small
+\vspace{2pt}
+\resizebox{\columnwidth}{!}{%
 \begin{tabular}{cccc}
 \toprule
 \textbf{Assets ($N$)} & \textbf{Budget ($K$)} & \textbf{Naive Space $\frac{\binom{N}{K}}{2^N}$} & \textbf{Gizmo Subspace} \\
@@ -217,7 +223,8 @@ In contrast, Gizmo Subspace QAOA, Gizmo SWAP-Net, and the COBYLA-optimized varia
 16 & 4 & 2.78\%  & \textbf{100.00\%} \\
 20 & 5 & 1.48\%  & \textbf{100.00\%} \\
 \bottomrule
-\end{tabular}
+\end{tabular}%
+}
 \end{table}
 
 \subsection{The Exponential Scaling Wall}
